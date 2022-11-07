@@ -6,7 +6,7 @@ pub fn draw_curve_point(points: &Vec<Point>, t: f32) -> Point {
     else {
         let mut newpoints = vec![pt(0.0, 0.0); points.len() - 1];
         for i in 0..newpoints.len() {
-            newpoints[i] = (1.0 - t) * points[i] + t * points[i+1];
+            newpoints[i] = points[i] * (1.0 - t) + points[i+1] * t;
         }
         draw_curve_point(&newpoints, t)
     }

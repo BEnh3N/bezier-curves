@@ -63,7 +63,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     // Spokes and lines, if activated
     if model.lines {
         for i in 0..model.points.len() - 1 {
-            draw.line().start(model.points[i].pos).end(model.points[i+1].pos).color(WHITE).weight(2.0);
+            draw.line().start(model.points[i].into()).end(model.points[i+1].into()).color(WHITE).weight(2.0);
         }
     }
     if model.spokes { draw_spokes(&draw, &model.points, model.t); }
@@ -73,9 +73,9 @@ fn view(app: &App, model: &Model, frame: Frame) {
     
     // Draw control points
     for point in model.points.iter() {
-        draw.ellipse().color(WHITE).x_y(point.pos.x, point.pos.y).w_h(12.0, 12.0);
+        draw.ellipse().color(WHITE).x_y(point.x, point.y).w_h(12.0, 12.0);
         if point.hover {
-            draw.ellipse().w_h(12.0, 12.0).no_fill().stroke_color(CADETBLUE).stroke_weight(2.0).x_y(point.pos.x, point.pos.y);
+            draw.ellipse().w_h(12.0, 12.0).no_fill().stroke_color(CADETBLUE).stroke_weight(2.0).x_y(point.x, point.y);
         }
     }
 
@@ -90,7 +90,7 @@ fn event(_app: &App, model: &mut Model, event: WindowEvent) {
     match event {
         MousePressed(MouseButton::Left) => {
             for point in model.points.iter_mut() {
-                if (model.mouse.x - point.pos.x).pow(2) + (model.mouse.y - point.pos.y).pow(2) <= 49_f32 { 
+                if (model.mouse.x - point.x).pow(2) + (model.mouse.y - point.y).pow(2) <= 49_f32 { 
                     point.hover = true;
                 }
             }
@@ -102,7 +102,7 @@ fn event(_app: &App, model: &mut Model, event: WindowEvent) {
         }
         MouseMoved(_) => {
             for point in model.points.iter_mut() {
-                if point.hover { point.pos = model.mouse; }
+                if point.hover { point.x = model.mouse.x; point.y = model.mouse.y }
             }
         }
         KeyPressed(Key::Space) => { model.lines = !model.lines }
