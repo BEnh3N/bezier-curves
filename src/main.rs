@@ -1,95 +1,89 @@
 use nannou::prelude::*;
+use nannou_egui::{self, egui, Egui};
+use crate::{pt::*, bezier::*, draw::*};
 
+mod pt;
+mod bezier;
+mod draw;
 
 const SIZE: u32 = 550;
 const X_OFF: f32 = SIZE as f32 / -2.0;
 const Y_OFF: f32 = SIZE as f32 / -2.0;
 
 fn main() {
-    nannou::app(model).update(update).run();
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Point {
-    pos: Vec2,
-    hover: bool,
-}
-impl Into<Point2> for Point {
-    fn into(self) -> Point2 {
-        Point2::new(self.pos.x, self.pos.y)
-    }
-}
-
-fn pt(x: f32, y: f32) -> Point {
-    Point { pos: vec2(x, y), hover: false }
+    nannou::app(model).update(update).loop_mode(LoopMode::RefreshSync).run();
 }
 
 struct Model {
-    _window: window::Id,
+    egui: Egui,
     points: Vec<Point>,
+    t: f32,
     segment_count: u32,
     mouse: Vec2,
+    lines: bool,
+    spokes: bool,
 }
 
 fn model(app: &App) -> Model {
-    let _window = app.new_window()
+    let window_id = app.new_window()
                                 .size(SIZE, SIZE)
                                 .event(event)
+                                .raw_event(raw_window_event)
                                 .view(view).build().unwrap();
+    let window = app.window(window_id).unwrap();
+    let egui = Egui::from_window(&window);
 
     let points = vec![
         pt(220.0, 300.0),
         pt(50.0, 380.0),
         pt(420.0, 500.0),
-        pt(420.0, 60.0)
+        pt(420.0, 60.0),
+        pt(250.0, 100.0)
     ];
-    let segment_count = 25;
+    let t = 0.5;
+    let segment_count = 50;
     let mouse = app.mouse.position();
+    let lines = true;
+    let spokes = true;
     
-    Model { _window, points, segment_count, mouse }
+    Model { egui, points, t, segment_count, mouse, lines, spokes }
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
     let mouse = app.mouse.position();
     model.mouse = vec2(mouse.x - X_OFF, mouse.y * -1.0 - Y_OFF);
 
-    // println!("{}", app.fps())
+    draw_gui(model);
 }
 
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw().scale_y(-1.0).x(X_OFF).y(Y_OFF);
     draw.background().color(BLACK);
 
-    draw.polyline().weight(10.0).points_colored(flatten_curve(&model.points, model.segment_count));
+    // Spokes and lines, if activated
+    if model.lines {
+        for i in 0..model.points.len() - 1 {
+            draw.line().start(model.points[i].pos).end(model.points[i+1].pos).color(WHITE).weight(2.0);
+        }
+    }
+    if model.spokes { draw_spokes(&draw, &model.points, model.t); }
+
+    // Draw bezier curve
+    draw_curve(&draw, &flatten_curve(&model.points, model.segment_count));
+    
+    // Draw control points
     for point in model.points.iter() {
         draw.ellipse().color(WHITE).x_y(point.pos.x, point.pos.y).w_h(12.0, 12.0);
         if point.hover {
-            draw.ellipse().w_h(12.0, 12.0).no_fill().stroke_color(DEEPSKYBLUE).stroke_weight(2.0).x_y(point.pos.x, point.pos.y);
+            draw.ellipse().w_h(12.0, 12.0).no_fill().stroke_color(CADETBLUE).stroke_weight(2.0).x_y(point.pos.x, point.pos.y);
         }
     }
+
+    // Draw little colored circle at t position
+    draw.ellipse().w_h(15.0, 15.0).color(hsv(model.t, 1.0, 1.0)).stroke_color(WHITE).stroke_weight(2.0).xy(draw_curve_point(&model.points, model.t).into());
 
     draw.to_frame(app, &frame).unwrap();
-}
-
-fn draw_curve_point(points: &Vec<Point>, t: f32) -> Point {
-    if points.len() == 1 { points[0] }
-    else {
-        let mut newpoints = vec![pt(0.0, 0.0); points.len() - 1];
-        for i in 0..newpoints.len() {
-            newpoints[i].pos = (1.0 - t) * points[i].pos + t * points[i+1].pos;
-        }
-        draw_curve_point(&newpoints, t)
-    }
-}
-
-fn flatten_curve(points: &Vec<Point>, segment_count: u32) -> Vec<(Point, Hsv)> {
-    let step = 1.0 / segment_count as f32;
-    let mut coordinates = vec![(draw_curve_point(points, 0.0), hsv(0.0, 1.0, 1.0))];
-    for i in 1..=segment_count {
-        let t = i as f32 * step;
-        coordinates.push((draw_curve_point(points, t), hsv(t, 1.0, 1.0)))
-    }
-    coordinates
+    model.egui.draw_to_frame(&frame).unwrap();
 }
 
 fn event(_app: &App, model: &mut Model, event: WindowEvent) {
@@ -111,6 +105,35 @@ fn event(_app: &App, model: &mut Model, event: WindowEvent) {
                 if point.hover { point.pos = model.mouse; }
             }
         }
+        KeyPressed(Key::Space) => { model.lines = !model.lines }
         _ => {}
     }
+}
+
+fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event::WindowEvent) {
+    model.egui.handle_raw_event(event);
+}
+
+fn draw_gui(model: &mut Model) {
+    let ctx = model.egui.begin_frame();    
+
+    egui::Window::new("Bezier Curves").show(&ctx, |ui| {
+        // Interval Slider
+        ui.label("Interval");
+        ui.add(egui::Slider::new(&mut model.t, 0.0..=1.0));
+
+        // Segment Count Slider
+        ui.label("Segment Count");
+        ui.add(egui::Slider::new(&mut model.segment_count, 1..=50));
+
+        // Show Lines Switch
+        ui.add(egui::Checkbox::new(&mut model.lines, "Show Lines"));
+
+        // Show Spokes Switch
+        if model.lines {
+            ui.add(egui::Checkbox::new(&mut model.spokes, "Show Spokes"));
+        } else {
+            model.spokes = false;
+        }
+    });
 }
