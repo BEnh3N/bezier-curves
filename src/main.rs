@@ -65,8 +65,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
         for i in 0..model.points.len() - 1 {
             draw.line().start(model.points[i].into()).end(model.points[i+1].into()).color(WHITE).weight(2.0);
         }
+        if model.spokes { draw_spokes(&draw, &model.points, model.t); }
     }
-    if model.spokes { draw_spokes(&draw, &model.points, model.t); }
 
     // Draw bezier curve
     draw_curve(&draw, &flatten_curve(&model.points, model.segment_count));
@@ -130,10 +130,8 @@ fn draw_gui(model: &mut Model) {
         ui.add(egui::Checkbox::new(&mut model.lines, "Show Lines"));
 
         // Show Spokes Switch
-        if model.lines {
+        ui.add_enabled_ui(model.lines, |ui| {
             ui.add(egui::Checkbox::new(&mut model.spokes, "Show Spokes"));
-        } else {
-            model.spokes = false;
-        }
+        })
     });
 }
