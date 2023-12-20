@@ -1,5 +1,5 @@
-use std::ops;
 use nannou::prelude::Vec2;
+use std::ops;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Point {
